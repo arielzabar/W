@@ -1,0 +1,47 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/hpcloud/tail"
+)
+
+func main() {
+	auditLogPath := "/audit/log"
+
+	log.Printf("Starting K3s audit log monitor for: %s", auditLogPath)
+
+	// Wait for file to exist
+	for {
+		if _, err := os.Stat(auditLogPath); err == nil {
+			break
+		}
+		log.Printf("Waiting for audit log file to exist: %s", auditLogPath)
+		time.Sleep(5 * time.Second)
+	}
+
+	// Start tailing from the end of the file
+	tailer, err := tail.TailFile(auditLogPath, tail.Config{
+		Follow:   true,
+		ReOpen:   true,
+		Location: &tail.SeekInfo{Offset: 0, Whence: 2}, // Start from end
+	})
+	if err != nil {
+		log.Fatalf("Failed to tail file: %v", err)
+	}
+
+	log.Printf("Started monitoring audit log: %s", auditLogPath)
+
+	// Print each new line to stdout
+	for line := range tailer.Lines {
+		if line.Err != nil {
+			log.Printf("Error reading line: %v", line.Err)
+			continue
+		}
+		fmt.Printf("AUDIT: %s\n", line.Text)
+	}
+}
