@@ -1,0 +1,60 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/fsnotify/fsnotify"
+)
+
+func main() {
+	if len(os.Args) != 2 {
+		log.Fatal("Usage: go run main.go <log-file>")
+	}
+
+	filename := os.Args[1]
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	// Start from end of file
+	file.Seek(0, 2)
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("🚀 Tailing: %s\n", filename)
+	fmt.Println("📝 Showing exact log entries:\n")
+
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				scanner := bufio.NewScanner(file)
+				for scanner.Scan() {
+					line := scanner.Text()
+					if line == "" {
+						continue
+					}
+
+					// Print the exact raw log entry
+					fmt.Println(line)
+				}
+			}
+		case err := <-watcher.Errors:
+			log.Println("Error:", err)
+		}
+	}
+}
